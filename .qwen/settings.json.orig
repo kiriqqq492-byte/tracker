@@ -1,0 +1,7 @@
+g{
+  "permissions": {
+    "allow": [
+      "Bash(dir *)"
+    ]
+  }
+}
