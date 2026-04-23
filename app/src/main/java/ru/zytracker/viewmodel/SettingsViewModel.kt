@@ -13,7 +13,6 @@ data class SettingsState(
     val profile: CourierProfile? = null,
     val themeMode: String = "system",
     val notificationsEnabled: Boolean = true,
-    val statsPeriod: String = "month", // "month" или "year"
     val isLoading: Boolean = false
 )
 
@@ -31,24 +30,28 @@ class SettingsViewModel(
     
     private fun loadData() {
         viewModelScope.launch {
-            profileRepository.getProfile()
-                .combine(settingsRepository.themeMode) { profile, theme ->
-                    Pair(profile, theme)
+            _state.value = _state.value.copy(isLoading = true)
+            
+            combine(
+                profileRepository.getProfile(),
+                settingsRepository.themeMode,
+                settingsRepository.notificationsEnabled,
+                settingsRepository.workSchedule
+            ) { profile, theme, notifications, workScheduleStr ->
+                val workSchedule = try {
+                    WorkSchedule.valueOf(workScheduleStr)
+                } catch (e: Exception) {
+                    WorkSchedule.FIVE_TWO
                 }
-                .combine(settingsRepository.notificationsEnabled) { pair, notifications ->
-                    Triple(pair.first, pair.second, notifications)
-                }
-                .combine(settingsRepository.statsPeriod) { triple, period ->
-                    SettingsState(
-                        profile = triple.first,
-                        themeMode = triple.second,
-                        notificationsEnabled = triple.third,
-                        statsPeriod = period
-                    )
-                }
-                .collect { newState ->
-                    _state.value = newState
-                }
+                SettingsState(
+                    profile = profile?.copy(workSchedule = workSchedule) ?: CourierProfile(workSchedule = workSchedule),
+                    themeMode = theme,
+                    notificationsEnabled = notifications,
+                    isLoading = false
+                )
+            }.collect { newState ->
+                _state.value = newState
+            }
         }
     }
     
@@ -64,45 +67,37 @@ class SettingsViewModel(
         }
     }
     
-    fun setStatsPeriod(period: String) {
-        viewModelScope.launch {
-            settingsRepository.setStatsPeriod(period)
-        }
-    }
-    
     fun updateSchedule(schedule: WorkSchedule) {
         viewModelScope.launch {
-            val currentProfile = _state.value.profile
-            if (currentProfile != null) {
-                val updatedProfile = currentProfile.copy(workSchedule = schedule)
-                profileRepository.updateProfile(updatedProfile)
-            } else {
-                // Создаём профиль если его нет
-                val newProfile = CourierProfile(
-                    name = "",
-                    workSchedule = schedule,
-                    scheduleStartDate = null
-                )
-                profileRepository.insertProfile(newProfile)
-            }
+            // Сохраняем в DataStore (надёжный способ)
+            settingsRepository.setWorkSchedule(schedule.name)
+            
+            // Также сохраняем в Room для совместимости
+            val currentProfile = profileRepository.getProfileOnce()
+            val profileToSave = CourierProfile(
+                id = 1,
+                name = currentProfile?.name ?: "",
+                workSchedule = schedule,
+                scheduleStartDate = currentProfile?.scheduleStartDate
+            )
+            profileRepository.insertProfile(profileToSave)
         }
     }
 
     fun updateScheduleStartDate(startDate: String) {
         viewModelScope.launch {
-            val currentProfile = _state.value.profile
-            if (currentProfile != null) {
-                val updatedProfile = currentProfile.copy(scheduleStartDate = startDate)
-                profileRepository.updateProfile(updatedProfile)
-            } else {
-                // Создаём профиль если его нет
-                val newProfile = CourierProfile(
-                    name = "",
-                    workSchedule = WorkSchedule.FIVE_TWO,
-                    scheduleStartDate = startDate
-                )
-                profileRepository.insertProfile(newProfile)
-            }
+            // Сохраняем в DataStore
+            settingsRepository.setWorkScheduleStartDate(startDate)
+            
+            // Также сохраняем в Room
+            val currentProfile = profileRepository.getProfileOnce()
+            val profileToSave = CourierProfile(
+                id = 1,
+                name = currentProfile?.name ?: "",
+                workSchedule = currentProfile?.workSchedule ?: WorkSchedule.FIVE_TWO,
+                scheduleStartDate = startDate
+            )
+            profileRepository.insertProfile(profileToSave)
         }
     }
 }

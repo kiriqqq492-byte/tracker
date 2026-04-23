@@ -71,11 +71,14 @@ class MainActivity : ComponentActivity() {
             
             ZYTrackerTheme(themeMode = themeMode) {
                 val navController = rememberNavController()
-                val hasProfile by profileRepository.hasProfileFlow().collectAsState(initial = false)
+                // Используем getProfile().collectAsState() для проверки наличия профиля
+                val profile by profileRepository.getProfile().collectAsState(initial = null as CourierProfile?)
 
-                LaunchedEffect(hasProfile) {
-                    if (!hasProfile) {
+                LaunchedEffect(profile) {
+                    if (profile == null) {
+                        // Создаём профиль по умолчанию ТОЛЬКО если его нет в базе
                         val defaultProfile = CourierProfile(
+                            id = 1,
                             name = "",
                             workSchedule = WorkSchedule.FIVE_TWO,
                             scheduleStartDate = null

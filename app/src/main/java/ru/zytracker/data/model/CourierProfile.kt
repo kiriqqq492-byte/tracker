@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
 data class CourierProfile(
     @PrimaryKey
     val id: Int = 1,
-    val name: String,
-    val workSchedule: WorkSchedule,
+    val name: String = "",
+    val workSchedule: WorkSchedule = WorkSchedule.FIVE_TWO,
     val scheduleStartDate: String? = null, // YYYY-MM-DD, дата начала отсчета графика
     val createdAt: Long = System.currentTimeMillis()
 )

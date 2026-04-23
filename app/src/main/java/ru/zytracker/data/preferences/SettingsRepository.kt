@@ -16,7 +16,9 @@ class SettingsRepository(context: Context) {
     object PreferencesKeys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
-        val STATS_PERIOD = stringPreferencesKey("stats_period") // "month" или "year"
+        val STATS_PERIOD = stringPreferencesKey("stats_period")
+        val WORK_SCHEDULE = stringPreferencesKey("work_schedule") // FIVE_TWO, TWO_TWO, THREE_THREE, TWO_TWO_THREE, CUSTOM
+        val WORK_SCHEDULE_START_DATE = stringPreferencesKey("work_schedule_start_date")
     }
     
     val themeMode: Flow<String> = dataStore.data.map { preferences ->
@@ -29,6 +31,14 @@ class SettingsRepository(context: Context) {
     
     val statsPeriod: Flow<String> = dataStore.data.map { preferences ->
         preferences[PreferencesKeys.STATS_PERIOD] ?: "month"
+    }
+    
+    val workSchedule: Flow<String> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.WORK_SCHEDULE] ?: "FIVE_TWO"
+    }
+    
+    val workScheduleStartDate: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.WORK_SCHEDULE_START_DATE]
     }
     
     suspend fun setThemeMode(mode: String) {
@@ -46,6 +56,22 @@ class SettingsRepository(context: Context) {
     suspend fun setStatsPeriod(period: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.STATS_PERIOD] = period
+        }
+    }
+    
+    suspend fun setWorkSchedule(schedule: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.WORK_SCHEDULE] = schedule
+        }
+    }
+    
+    suspend fun setWorkScheduleStartDate(date: String?) {
+        dataStore.edit { preferences ->
+            if (date != null) {
+                preferences[PreferencesKeys.WORK_SCHEDULE_START_DATE] = date
+            } else {
+                preferences.remove(PreferencesKeys.WORK_SCHEDULE_START_DATE)
+            }
         }
     }
 }

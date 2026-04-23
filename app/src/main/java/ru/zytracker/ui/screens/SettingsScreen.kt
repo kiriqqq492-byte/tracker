@@ -66,14 +66,6 @@ fun SettingsScreen(
             
             Divider()
             
-            // Период статистики
-            StatsPeriodSection(
-                currentPeriod = state.statsPeriod,
-                onPeriodChange = { viewModel.setStatsPeriod(it) }
-            )
-            
-            Divider()
-            
             // Тема
             ThemeSection(
                 currentTheme = state.themeMode,
@@ -274,69 +266,6 @@ fun StartDateDialog(
             state = datePickerState,
             modifier = Modifier.padding(16.dp)
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun StatsPeriodSection(
-    currentPeriod: String,
-    onPeriodChange: (String) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.BarChart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Период статистики",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                FilterChip(
-                    selected = currentPeriod == "month",
-                    onClick = { onPeriodChange("month") },
-                    label = { Text("Месяц") },
-                    leadingIcon = if (currentPeriod == "month") {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    } else null,
-                    modifier = Modifier.weight(1f)
-                )
-                
-                FilterChip(
-                    selected = currentPeriod == "year",
-                    onClick = { onPeriodChange("year") },
-                    label = { Text("Год") },
-                    leadingIcon = if (currentPeriod == "year") {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    } else null,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
     }
 }
 

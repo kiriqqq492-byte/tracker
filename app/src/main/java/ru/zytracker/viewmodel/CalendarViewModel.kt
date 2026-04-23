@@ -44,30 +44,44 @@ class CalendarViewModel(
     private val yearFormatter = DateTimeFormatter.ofPattern("yyyy")
 
     init {
-        // Load profile and subscribe to changes
+        // Подписываемся на изменения графика из DataStore (приоритетный источник)
         viewModelScope.launch {
-            profileRepository.getProfile().collect { profile ->
-                profile?.let {
-                    val startDate = it.scheduleStartDate?.let { dateStr ->
-                        LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE)
+            settingsRepository.workSchedule
+                .combine(settingsRepository.workScheduleStartDate) { scheduleStr, startDateStr ->
+                    val schedule = try {
+                        WorkSchedule.valueOf(scheduleStr)
+                    } catch (e: Exception) {
+                        WorkSchedule.FIVE_TWO
                     }
-                    _state.value = _state.value.copy(
-                        workSchedule = it.workSchedule,
-                        scheduleStartDate = startDate
-                    )
+                    val startDate = startDateStr?.let {
+                        try {
+                            LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    schedule to startDate
+                }
+                .collect { (schedule, startDate) ->
+                    _state.update {
+                        it.copy(
+                            workSchedule = schedule,
+                            scheduleStartDate = startDate
+                        )
+                    }
                     calculateWorkDays()
                 }
-            }
         }
         
-        // Subscribe to stats period changes
+        // Подписываемся на период статистики
         viewModelScope.launch {
             settingsRepository.statsPeriod.collect { period ->
-                _state.value = _state.value.copy(statsPeriod = period)
+                _state.update { it.copy(statsPeriod = period) }
                 loadData()
             }
         }
         
+        // Загружаем данные о сменах
         loadData()
     }
 
@@ -92,29 +106,29 @@ class CalendarViewModel(
             workDaysMap[date] = dayType
         }
         
-        _state.value = _state.value.copy(workDaysMap = workDaysMap)
+        _state.update { it.copy(workDaysMap = workDaysMap) }
     }
     
     fun selectDate(date: LocalDate) {
-        _state.value = _state.value.copy(selectedDate = date)
+        _state.update { it.copy(selectedDate = date) }
         checkShiftForDate(date)
     }
     
     fun changeMonth(monthChange: Int) {
         val newMonth = _state.value.currentMonth.plusMonths(monthChange.toLong())
-        _state.value = _state.value.copy(currentMonth = newMonth)
+        _state.update { it.copy(currentMonth = newMonth) }
         loadData()
     }
     
     fun setShowDialog(show: Boolean, shift: Shift? = null) {
-        _state.value = _state.value.copy(showDialog = show, dialogShift = shift)
+        _state.update { it.copy(showDialog = show, dialogShift = shift) }
     }
     
     fun checkShiftForDate(date: LocalDate) {
         viewModelScope.launch {
             val dateStr = date.format(dateFormatter)
             val shift = shiftRepository.getShiftByDate(dateStr)
-            _state.value = _state.value.copy(dialogShift = shift, showDialog = true)
+            _state.update { it.copy(dialogShift = shift, showDialog = true) }
         }
     }
     
@@ -140,10 +154,10 @@ class CalendarViewModel(
                 }
 
                 shiftRepository.insertShift(shift)
-                _state.value = _state.value.copy(showDialog = false, error = null)
+                _state.update { it.copy(showDialog = false, error = null) }
                 loadData()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = "Ошибка сохранения: ${e.message}")
+                _state.update { it.copy(error = "Ошибка сохранения: ${e.message}") }
             }
         }
     }
@@ -154,10 +168,10 @@ class CalendarViewModel(
                 val date = _state.value.selectedDate
                 val dateStr = date.format(dateFormatter)
                 shiftRepository.deleteShiftByDate(dateStr)
-                _state.value = _state.value.copy(showDialog = false, error = null)
+                _state.update { it.copy(showDialog = false, error = null) }
                 loadData()
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = "Ошибка удаления: ${e.message}")
+                _state.update { it.copy(error = "Ошибка удаления: ${e.message}") }
             }
         }
     }
@@ -166,10 +180,9 @@ class CalendarViewModel(
         val state = _state.value
         
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true)
+            _state.update { it.copy(isLoading = true) }
             
             if (state.statsPeriod == "year") {
-                // Загрузка данных за год
                 val year = state.currentMonth.format(yearFormatter)
                 val monthMask = year + "-%"
                 
@@ -180,21 +193,18 @@ class CalendarViewModel(
                     .combine(shiftRepository.getTotalKilometersByYear(year)) { pair, km ->
                         Triple(pair.first, pair.second, km ?: 0.0)
                     }
-                    .combine(shiftRepository.getShiftsByMonth(monthMask)) { triple, monthShifts ->
-                        // Используем данные за год для отображения, но monthShifts для workDaysMap
-                        Triple(triple.first, triple.second, triple.third)
-                    }
                     .collect { (shifts, orders, km) ->
-                        _state.value = _state.value.copy(
-                            shifts = shifts,
-                            totalOrders = orders,
-                            totalKilometers = km,
-                            isLoading = false
-                        )
+                        _state.update {
+                            it.copy(
+                                shifts = shifts,
+                                totalOrders = orders,
+                                totalKilometers = km,
+                                isLoading = false
+                            )
+                        }
                         calculateWorkDays()
                     }
             } else {
-                // Загрузка данных за месяц
                 val yearMonth = state.currentMonth.format(yearMonthFormatter) + "%"
                 
                 shiftRepository.getShiftsByMonth(yearMonth)
@@ -205,12 +215,14 @@ class CalendarViewModel(
                         Triple(pair.first, pair.second, km ?: 0.0)
                     }
                     .collect { (shifts, orders, km) ->
-                        _state.value = _state.value.copy(
-                            shifts = shifts,
-                            totalOrders = orders,
-                            totalKilometers = km,
-                            isLoading = false
-                        )
+                        _state.update {
+                            it.copy(
+                                shifts = shifts,
+                                totalOrders = orders,
+                                totalKilometers = km,
+                                isLoading = false
+                            )
+                        }
                         calculateWorkDays()
                     }
             }
