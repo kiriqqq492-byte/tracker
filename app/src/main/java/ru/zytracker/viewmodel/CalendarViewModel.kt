@@ -62,6 +62,10 @@ class CalendarViewModel(
                     }
                     schedule to startDate
                 }
+                .catch { e ->
+                    // Обработка ошибки при чтении настроек
+                    _state.update { it.copy(error = "Ошибка загрузки настроек: ${e.message}") }
+                }
                 .collect { (schedule, startDate) ->
                     _state.update {
                         it.copy(
@@ -75,10 +79,14 @@ class CalendarViewModel(
         
         // Подписываемся на период статистики
         viewModelScope.launch {
-            settingsRepository.statsPeriod.collect { period ->
-                _state.update { it.copy(statsPeriod = period) }
-                loadData()
-            }
+            settingsRepository.statsPeriod
+                .catch { e ->
+                    _state.update { it.copy(error = "Ошибка загрузки периода: ${e.message}") }
+                }
+                .collect { period ->
+                    _state.update { it.copy(statsPeriod = period) }
+                    loadData()
+                }
         }
         
         // Загружаем данные о сменах
@@ -110,25 +118,41 @@ class CalendarViewModel(
     }
     
     fun selectDate(date: LocalDate) {
-        _state.update { it.copy(selectedDate = date) }
-        checkShiftForDate(date)
+        try {
+            _state.update { it.copy(selectedDate = date) }
+            checkShiftForDate(date)
+        } catch (e: Exception) {
+            _state.update { it.copy(error = "Ошибка выбора даты: ${e.message}") }
+        }
     }
     
     fun changeMonth(monthChange: Int) {
-        val newMonth = _state.value.currentMonth.plusMonths(monthChange.toLong())
-        _state.update { it.copy(currentMonth = newMonth) }
-        loadData()
+        try {
+            val newMonth = _state.value.currentMonth.plusMonths(monthChange.toLong())
+            _state.update { it.copy(currentMonth = newMonth) }
+            loadData()
+        } catch (e: Exception) {
+            _state.update { it.copy(error = "Ошибка смены месяца: ${e.message}") }
+        }
     }
     
     fun setShowDialog(show: Boolean, shift: Shift? = null) {
         _state.update { it.copy(showDialog = show, dialogShift = shift) }
     }
     
+    fun clearError() {
+        _state.update { it.copy(error = null) }
+    }
+    
     fun checkShiftForDate(date: LocalDate) {
         viewModelScope.launch {
-            val dateStr = date.format(dateFormatter)
-            val shift = shiftRepository.getShiftByDate(dateStr)
-            _state.update { it.copy(dialogShift = shift, showDialog = true) }
+            try {
+                val dateStr = date.format(dateFormatter)
+                val shift = shiftRepository.getShiftByDate(dateStr)
+                _state.update { it.copy(dialogShift = shift, showDialog = true, error = null) }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Ошибка проверки смены: ${e.message}") }
+            }
         }
     }
     
@@ -180,51 +204,76 @@ class CalendarViewModel(
         val state = _state.value
         
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            
-            if (state.statsPeriod == "year") {
-                val year = state.currentMonth.format(yearFormatter)
-                val monthMask = year + "-%"
+            try {
+                _state.update { it.copy(isLoading = true, error = null) }
                 
-                shiftRepository.getShiftsByYear(year)
-                    .combine(shiftRepository.getTotalOrdersByYear(year)) { shifts, orders ->
-                        shifts to (orders ?: 0)
-                    }
-                    .combine(shiftRepository.getTotalKilometersByYear(year)) { pair, km ->
-                        Triple(pair.first, pair.second, km ?: 0.0)
-                    }
-                    .collect { (shifts, orders, km) ->
-                        _state.update {
-                            it.copy(
-                                shifts = shifts,
-                                totalOrders = orders,
-                                totalKilometers = km,
-                                isLoading = false
-                            )
+                if (state.statsPeriod == "year") {
+                    val year = state.currentMonth.format(yearFormatter)
+                    val monthMask = year + "-%"
+                    
+                    shiftRepository.getShiftsByYear(year)
+                        .combine(shiftRepository.getTotalOrdersByYear(year)) { shifts, orders ->
+                            shifts to (orders ?: 0)
                         }
-                        calculateWorkDays()
-                    }
-            } else {
-                val yearMonth = state.currentMonth.format(yearMonthFormatter) + "%"
-                
-                shiftRepository.getShiftsByMonth(yearMonth)
-                    .combine(shiftRepository.getTotalOrdersByMonth(yearMonth)) { shifts, orders ->
-                        shifts to (orders ?: 0)
-                    }
-                    .combine(shiftRepository.getTotalKilometersByMonth(yearMonth)) { pair, km ->
-                        Triple(pair.first, pair.second, km ?: 0.0)
-                    }
-                    .collect { (shifts, orders, km) ->
-                        _state.update {
-                            it.copy(
-                                shifts = shifts,
-                                totalOrders = orders,
-                                totalKilometers = km,
-                                isLoading = false
-                            )
+                        .combine(shiftRepository.getTotalKilometersByYear(year)) { pair, km ->
+                            Triple(pair.first, pair.second, km ?: 0.0)
                         }
-                        calculateWorkDays()
-                    }
+                        .catch { e ->
+                            _state.update { 
+                                it.copy(
+                                    isLoading = false,
+                                    error = "Ошибка загрузки данных за год: ${e.message}"
+                                )
+                            }
+                        }
+                        .collect { (shifts, orders, km) ->
+                            _state.update {
+                                it.copy(
+                                    shifts = shifts,
+                                    totalOrders = orders,
+                                    totalKilometers = km,
+                                    isLoading = false
+                                )
+                            }
+                            calculateWorkDays()
+                        }
+                } else {
+                    val yearMonth = state.currentMonth.format(yearMonthFormatter) + "%"
+                    
+                    shiftRepository.getShiftsByMonth(yearMonth)
+                        .combine(shiftRepository.getTotalOrdersByMonth(yearMonth)) { shifts, orders ->
+                            shifts to (orders ?: 0)
+                        }
+                        .combine(shiftRepository.getTotalKilometersByMonth(yearMonth)) { pair, km ->
+                            Triple(pair.first, pair.second, km ?: 0.0)
+                        }
+                        .catch { e ->
+                            _state.update { 
+                                it.copy(
+                                    isLoading = false,
+                                    error = "Ошибка загрузки данных за месяц: ${e.message}"
+                                )
+                            }
+                        }
+                        .collect { (shifts, orders, km) ->
+                            _state.update {
+                                it.copy(
+                                    shifts = shifts,
+                                    totalOrders = orders,
+                                    totalKilometers = km,
+                                    isLoading = false
+                                )
+                            }
+                            calculateWorkDays()
+                        }
+                }
+            } catch (e: Exception) {
+                _state.update { 
+                    it.copy(
+                        isLoading = false,
+                        error = "Критическая ошибка загрузки: ${e.message}"
+                    )
+                }
             }
         }
     }
