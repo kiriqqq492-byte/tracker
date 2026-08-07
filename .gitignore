@@ -6,6 +6,13 @@
 *.out
 build/
 # Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+target/
 .gradle/
 # Logs and temp files
 *.log
@@ -18,4 +25,7 @@ build/
 # Editors
 .vscode/
 .idea/
+# OS
+.DS_Store
+Thumbs.db
 ```

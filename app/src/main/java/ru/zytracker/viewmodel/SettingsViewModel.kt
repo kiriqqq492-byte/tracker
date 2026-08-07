@@ -13,7 +13,8 @@ data class SettingsState(
     val profile: CourierProfile? = null,
     val themeMode: String = "system",
     val notificationsEnabled: Boolean = true,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
 class SettingsViewModel(
@@ -30,29 +31,51 @@ class SettingsViewModel(
     
     private fun loadData() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true)
-            
-            combine(
-                profileRepository.getProfile(),
-                settingsRepository.themeMode,
-                settingsRepository.notificationsEnabled,
-                settingsRepository.workSchedule
-            ) { profile, theme, notifications, workScheduleStr ->
-                val workSchedule = try {
-                    WorkSchedule.valueOf(workScheduleStr)
-                } catch (e: Exception) {
-                    WorkSchedule.FIVE_TWO
+            try {
+                _state.value = _state.value.copy(isLoading = true, error = null)
+                
+                combine(
+                    profileRepository.getProfile(),
+                    settingsRepository.themeMode,
+                    settingsRepository.notificationsEnabled,
+                    settingsRepository.workSchedule
+                ) { profile, theme, notifications, workScheduleStr ->
+                    val workSchedule = try {
+                        WorkSchedule.valueOf(workScheduleStr)
+                    } catch (e: Exception) {
+                        WorkSchedule.FIVE_TWO
+                    }
+                    SettingsState(
+                        profile = profile?.copy(workSchedule = workSchedule) ?: CourierProfile(workSchedule = workSchedule),
+                        themeMode = theme,
+                        notificationsEnabled = notifications,
+                        isLoading = false
+                    )
                 }
-                SettingsState(
-                    profile = profile?.copy(workSchedule = workSchedule) ?: CourierProfile(workSchedule = workSchedule),
-                    themeMode = theme,
-                    notificationsEnabled = notifications,
-                    isLoading = false
-                )
-            }.collect { newState ->
-                _state.value = newState
+                .catch { e ->
+                    _state.update { 
+                        it.copy(
+                            isLoading = false,
+                            error = "Ошибка загрузки настроек: ${e.message}"
+                        )
+                    }
+                }
+                .collect { newState ->
+                    _state.value = newState
+                }
+            } catch (e: Exception) {
+                _state.update { 
+                    it.copy(
+                        isLoading = false,
+                        error = "Критическая ошибка: ${e.message}"
+                    )
+                }
             }
         }
+    }
+    
+    fun clearError() {
+        _state.update { it.copy(error = null) }
     }
     
     fun setThemeMode(mode: String) {

@@ -39,6 +39,16 @@ fun CalendarScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    
+    // Показываем сообщение об ошибке, если она есть
+    state.error?.let { error ->
+        LaunchedEffect(error) {
+            // Можно показать Snackbar или Toast
+            // Здесь просто очищаем ошибку после показа
+            viewModel.clearError()
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -60,28 +70,91 @@ fun CalendarScreen(
             // Месяц навигация
             MonthNavigation(
                 currentMonth = state.currentMonth,
-                onPreviousMonth = { viewModel.changeMonth(-1) },
-                onNextMonth = { viewModel.changeMonth(1) }
+                onPreviousMonth = { 
+                    try {
+                        viewModel.changeMonth(-1)
+                    } catch (e: Exception) {
+                        // Обработка ошибки смены месяца
+                    }
+                },
+                onNextMonth = { 
+                    try {
+                        viewModel.changeMonth(1)
+                    } catch (e: Exception) {
+                        // Обработка ошибки смены месяца
+                    }
+                }
             )
             
-            // Календарь
-            CalendarGrid(
-                currentMonth = state.currentMonth,
-                selectedDate = state.selectedDate,
-                shifts = state.shifts,
-                workDaysMap = state.workDaysMap,
-                workSchedule = state.workSchedule,
-                scheduleStartDate = state.scheduleStartDate,
-                onDateSelected = { viewModel.selectDate(it) }
-            )
+            // Показываем индикатор загрузки
+            if (state.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                // Календарь
+                CalendarGrid(
+                    currentMonth = state.currentMonth,
+                    selectedDate = state.selectedDate,
+                    shifts = state.shifts,
+                    workDaysMap = state.workDaysMap,
+                    workSchedule = state.workSchedule,
+                    scheduleStartDate = state.scheduleStartDate,
+                    onDateSelected = { 
+                        try {
+                            viewModel.selectDate(it)
+                        } catch (e: Exception) {
+                            // Обработка ошибки выбора даты
+                        }
+                    }
+                )
+                
+                // Сводка за период (месяц/год)
+                SummarySection(
+                    totalOrders = state.totalOrders,
+                    totalKilometers = state.totalKilometers,
+                    workDaysCount = state.workDaysMap.count { it.value == ScheduleUtils.DayType.SCHEDULED_WORK || it.value == ScheduleUtils.DayType.WORKED },
+                    workedDaysCount = state.workDaysMap.count { it.value == ScheduleUtils.DayType.WORKED }
+                )
+            }
             
-            // Сводка за период (месяц/год)
-            SummarySection(
-                totalOrders = state.totalOrders,
-                totalKilometers = state.totalKilometers,
-                workDaysCount = state.workDaysMap.count { it.value == ScheduleUtils.DayType.SCHEDULED_WORK || it.value == ScheduleUtils.DayType.WORKED },
-                workedDaysCount = state.workDaysMap.count { it.value == ScheduleUtils.DayType.WORKED }
-            )
+            // Показываем сообщение об ошибке, если она есть
+            state.error?.let { error ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 14.sp
+                        )
+                        IconButton(onClick = { viewModel.clearError() }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Закрыть",
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -90,9 +163,21 @@ fun CalendarScreen(
         ShiftDialog(
             selectedDate = state.selectedDate,
             existingShift = state.dialogShift,
-            onSave = { orders, km -> viewModel.saveShift(orders, km) },
-            onDelete = { viewModel.deleteShift() },
-            onDismiss = {viewModel.setShowDialog(false) }
+            onSave = { orders, km -> 
+                try {
+                    viewModel.saveShift(orders, km)
+                } catch (e: Exception) {
+                    // Ошибка будет обработана в ViewModel
+                }
+            },
+            onDelete = { 
+                try {
+                    viewModel.deleteShift()
+                } catch (e: Exception) {
+                    // Ошибка будет обработана в ViewModel
+                }
+            },
+            onDismiss = { viewModel.setShowDialog(false) }
         )
     }
 }
