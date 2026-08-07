@@ -35,12 +35,9 @@ import ru.zytracker.data.repository.CourierProfileRepository
 import ru.zytracker.data.repository.ShiftRepository
 import ru.zytracker.ui.screens.CalendarScreen
 import ru.zytracker.ui.screens.SettingsScreen
-import ru.zytracker.ui.screens.WelcomeScreen
 import ru.zytracker.ui.theme.ZYTrackerTheme
 import ru.zytracker.viewmodel.CalendarViewModel
 import ru.zytracker.viewmodel.SettingsViewModel
-import ru.zytracker.viewmodel.WelcomeViewModel
-import ru.zytracker.viewmodel.WelcomeViewModelFactory
 import ru.zytracker.viewmodel.CalendarViewModelFactory
 import ru.zytracker.viewmodel.SettingsViewModelFactory
 import ru.zytracker.navigation.Screen
@@ -107,19 +104,6 @@ class MainActivity : ComponentActivity() {
             scheduleNotification(this)
         }
     }
-}
-
-@Composable
-fun WelcomeScreenApp(
-    profileRepository: CourierProfileRepository,
-    onCompleted: () -> Unit
-) {
-    val viewModel: WelcomeViewModel = viewModel(factory = WelcomeViewModelFactory(profileRepository))
-
-    WelcomeScreen(
-        viewModel = viewModel,
-        onCompleted = onCompleted
-    )
 }
 
 @Composable

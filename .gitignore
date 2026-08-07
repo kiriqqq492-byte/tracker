@@ -1,10 +1,21 @@
 ```
-# Build artifacts
+# Compiled and build artifacts
+*.class
+*.o
+*.obj
+*.out
 build/
 # Dependencies
 .gradle/
+# Logs and temp files
+*.log
+*.tmp
+*.swp
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
+# Editors
+.vscode/
+.idea/
 ```
